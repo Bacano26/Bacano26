@@ -39,7 +39,7 @@ export default function Navbar() {
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
               <Ticket className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-gray-900">Boletas App</span>
+            <span className="font-bold text-gray-900">Bacano</span>
           </Link>
 
           {/* Links escritorio */}
