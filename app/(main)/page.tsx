@@ -1,11 +1,9 @@
 // app/(main)/page.tsx
-// Revalida la página cada 30 segundos automáticamente
-export const revalidate = 30
 import Link from 'next/link'
 import { ArrowRight, Ticket, Shield, Zap } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import EventoCard from '@/components/eventos/EventoCard'
-import BannerEventos from '@/components/eventos/BannerEventos'  // ← AGREGA ESTE IMPORT
+import BannerEventos from '@/components/eventos/BannerEventos'
+import EventosGrid from '@/components/eventos/EventosGrid'  // ← NUEVO
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -24,9 +22,7 @@ export default async function HomePage() {
     .order('fecha', { ascending: true })
     .limit(6)
 
-  // Los primeros 3 van al banner destacado
   const eventosBanner = eventos?.slice(0, 3) ?? []
-  // Todos van al grid de abajo
   const eventosGrid = eventos ?? []
 
   return (
@@ -59,7 +55,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── BANNER DE CONCIERTOS DESTACADOS ── */}
+      {/* ── BANNER ── */}
       {eventosBanner.length > 0 && (
         <section>
           <BannerEventos eventos={eventosBanner} />
@@ -71,9 +67,9 @@ export default async function HomePage() {
         <div className="max-w-6xl mx-auto px-4 py-10">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { icono: <Zap className="w-5 h-5" />,    titulo: 'Compra en segundos',  desc: 'Proceso simple y rápido' },
-              { icono: <Shield className="w-5 h-5" />, titulo: 'Pago seguro',          desc: 'Tus datos siempre protegidos' },
-              { icono: <Ticket className="w-5 h-5" />, titulo: 'Boleta digital',       desc: 'Recíbela al instante' },
+              { icono: <Zap className="w-5 h-5" />,    titulo: 'Compra en segundos', desc: 'Proceso simple y rápido' },
+              { icono: <Shield className="w-5 h-5" />, titulo: 'Pago seguro',         desc: 'Tus datos siempre protegidos' },
+              { icono: <Ticket className="w-5 h-5" />, titulo: 'Boleta digital',      desc: 'Recíbela al instante' },
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-4 p-4 rounded-xl">
                 <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 flex-shrink-0">
@@ -89,7 +85,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── GRID DE TODOS LOS EVENTOS ── */}
+      {/* ── GRID EN TIEMPO REAL ── */}
       <section className="max-w-6xl mx-auto px-4 py-14">
         <div className="flex items-end justify-between mb-8">
           <div>
@@ -102,18 +98,8 @@ export default async function HomePage() {
           </Link>
         </div>
 
-        {eventosGrid.length === 0 ? (
-          <div className="text-center py-16">
-            <Ticket className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 font-medium">No hay eventos próximos</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {eventosGrid.map(evento => (
-              <EventoCard key={evento.id} evento={evento} />
-            ))}
-          </div>
-        )}
+        {/* ← REEMPLAZA el grid estático por este componente */}
+        <EventosGrid eventosIniciales={eventosGrid} />
       </section>
 
     </div>
