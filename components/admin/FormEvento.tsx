@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Evento } from '@/types'
 
 interface Props {
-  evento?: Evento  // si viene → modo edición, si no → modo creación
+  evento?: Evento
 }
 
 export default function FormEvento({ evento }: Props) {
@@ -42,7 +42,6 @@ export default function FormEvento({ evento }: Props) {
     setCargando(true)
     setError('')
 
-    // Validaciones básicas
     if (!form.titulo || !form.fecha || !form.lugar || !form.precio || !form.capacidad) {
       setError('Todos los campos obligatorios deben estar completos')
       setCargando(false)
@@ -62,24 +61,22 @@ export default function FormEvento({ evento }: Props) {
 
     try {
       if (modoEdicion) {
-        // Actualizar evento existente
         const { error } = await supabase
           .from('eventos')
           .update(datos)
           .eq('id', evento!.id)
-
         if (error) throw error
       } else {
-        // Crear nuevo evento
         const { error } = await supabase
           .from('eventos')
           .insert({ ...datos, boletas_vendidas: 0 })
-
         if (error) throw error
       }
 
-      router.push('/admin/eventos')
+      // ← ÚNICO CAMBIO: agrega revalidar antes de redirigir
+      await fetch('/api/revalidar', { method: 'POST' })
       router.refresh()
+      router.push('/admin/eventos')
 
     } catch (err: any) {
       setError(err.message ?? 'Error al guardar el evento')
@@ -97,7 +94,6 @@ export default function FormEvento({ evento }: Props) {
         </div>
       )}
 
-      {/* Título */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
           Título <span className="text-red-500">*</span>
@@ -111,7 +107,6 @@ export default function FormEvento({ evento }: Props) {
         />
       </div>
 
-      {/* Descripción */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
           Descripción
@@ -126,7 +121,6 @@ export default function FormEvento({ evento }: Props) {
         />
       </div>
 
-      {/* Fecha y Lugar en fila */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -154,7 +148,6 @@ export default function FormEvento({ evento }: Props) {
         </div>
       </div>
 
-      {/* Precio y Capacidad en fila */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -186,7 +179,6 @@ export default function FormEvento({ evento }: Props) {
         </div>
       </div>
 
-      {/* URL imagen */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
           URL de imagen
@@ -198,7 +190,6 @@ export default function FormEvento({ evento }: Props) {
           placeholder="https://images.unsplash.com/..."
           className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
-        {/* Preview de imagen */}
         {form.imagen_url && (
           <div className="mt-2 h-32 rounded-xl overflow-hidden border border-gray-100">
             <img
@@ -211,7 +202,6 @@ export default function FormEvento({ evento }: Props) {
         )}
       </div>
 
-      {/* Toggle activo */}
       <div className="flex items-center gap-3">
         <input
           type="checkbox"
@@ -226,17 +216,13 @@ export default function FormEvento({ evento }: Props) {
         </label>
       </div>
 
-      {/* Botones */}
       <div className="flex gap-3 pt-2">
         <button
           type="submit"
           disabled={cargando}
           className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 text-white font-semibold rounded-xl text-sm transition-colors"
         >
-          {cargando
-            ? 'Guardando...'
-            : modoEdicion ? 'Guardar cambios' : 'Crear evento'
-          }
+          {cargando ? 'Guardando...' : modoEdicion ? 'Guardar cambios' : 'Crear evento'}
         </button>
         <button
           type="button"

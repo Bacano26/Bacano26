@@ -1,4 +1,3 @@
-// components/admin/BotonEliminar.tsx
 'use client'
 
 import { useState } from 'react'
@@ -22,7 +21,9 @@ export default function BotonEliminar({ id, titulo }: Props) {
 
     setCargando(true)
     await supabase.from('eventos').delete().eq('id', id)
+    await fetch('/api/revalidar', { method: 'POST' })  // ← nuevo
     router.refresh()
+    router.push('/admin/eventos')                       // ← nuevo
     setCargando(false)
   }
 
