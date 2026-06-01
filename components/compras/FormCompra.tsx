@@ -7,6 +7,7 @@ import { Minus, Plus, ShoppingCart, CheckCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrecio } from '@/lib/utils'
 import type { Evento } from '@/types'
+import BoletaPDF from '@/components/compras/BoletaPDF'  // ← NUEVO
 
 interface Props {
   evento: Evento
@@ -22,6 +23,8 @@ export default function FormCompra({ evento, userId }: Props) {
   const [error, setError] = useState('')
   const [exitoso, setExitoso] = useState(false)
   const [codigosGenerados, setCodigosGenerados] = useState<string[]>([])
+  const [nombreUsuario, setNombreUsuario] = useState('')  // ← NUEVO
+  const [emailUsuario, setEmailUsuario] = useState('')    // ← NUEVO
 
   const boletasRestantes = evento.capacidad - evento.boletas_vendidas
   const maximo = Math.min(10, boletasRestantes)
@@ -41,7 +44,7 @@ export default function FormCompra({ evento, userId }: Props) {
     setError('')
 
     try {
-      // ← NUEVO: verifica disponibilidad en tiempo real
+      // Verifica disponibilidad en tiempo real
       const { data: eventoActual } = await supabase
         .from('eventos')
         .select('boletas_vendidas, capacidad')
@@ -64,7 +67,16 @@ export default function FormCompra({ evento, userId }: Props) {
         setError(`Solo quedan ${disponibles} boletas disponibles`)
         return
       }
-      // ← FIN VERIFICACIÓN
+
+      // ← NUEVO: trae el perfil del usuario para el PDF
+      const { data: perfil } = await supabase
+        .from('profiles')
+        .select('nombre, email')
+        .eq('id', userId)
+        .single()
+
+      setNombreUsuario(perfil?.nombre ?? 'Usuario')
+      setEmailUsuario(perfil?.email ?? '')
 
       // PASO 1: Crear la compra
       const { data: compra, error: errorCompra } = await supabase
@@ -124,30 +136,43 @@ export default function FormCompra({ evento, userId }: Props) {
   // ── PANTALLA DE ÉXITO ──
   if (exitoso) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <CheckCircle className="w-8 h-8 text-green-600" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">¡Compra exitosa!</h2>
-        <p className="text-gray-500 text-sm mb-6">
-          Compraste <strong>{cantidad} boleta{cantidad > 1 ? 's' : ''}</strong> para{' '}
-          <strong>{evento.titulo}</strong>
-        </p>
-
-        <div className="bg-gray-50 rounded-xl p-4 mb-6">
-          <p className="text-xs font-medium text-gray-500 mb-3 uppercase tracking-wide">
-            Tus códigos de boleta
-          </p>
-          <div className="space-y-2">
-            {codigosGenerados.map((codigo, i) => (
-              <div key={codigo} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-2.5">
-                <span className="text-xs text-gray-400">Boleta {i + 1}</span>
-                <span className="font-mono font-bold text-indigo-600 tracking-widest text-sm">
-                  {codigo}
-                </span>
-              </div>
-            ))}
+      <div className="bg-white rounded-2xl border border-gray-100 p-8">
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">¡Compra exitosa!</h2>
+          <p className="text-gray-500 text-sm">
+            Compraste <strong>{cantidad} boleta{cantidad > 1 ? 's' : ''}</strong> para{' '}
+            <strong>{evento.titulo}</strong>
+          </p>
+        </div>
+
+        {/* ← NUEVO: muestra cada boleta con botón de descarga PDF */}
+        <div className="space-y-4 mb-6">
+          {codigosGenerados.map((codigo, i) => (
+            <BoletaPDF
+              key={codigo}
+              boleta={{ codigo, usado: false }}
+              compra={{
+                cantidad,
+                total,
+                created_at: new Date().toISOString(),
+              }}
+              evento={{
+                titulo: evento.titulo,
+                fecha: evento.fecha,
+                lugar: evento.lugar,
+                precio: evento.precio,
+              }}
+              usuario={{
+                nombre: nombreUsuario,
+                email: emailUsuario,
+              }}
+              numeroBoleta={i + 1}
+              totalBoletas={cantidad}
+            />
+          ))}
         </div>
 
         <div className="flex items-center justify-between py-3 border-t border-gray-100 mb-6">

@@ -1,6 +1,7 @@
+// app/(main)/historial/page.tsx
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link' // 👈 Importamos Link para la redirección interna
+import Link from 'next/link'
 import { Ticket, Calendar, MapPin, ShoppingBag } from 'lucide-react'
 import { formatFecha, formatPrecio } from '@/lib/utils'
 import BoletasDetalle from '@/components/compras/BoletasDetalle'
@@ -13,13 +14,17 @@ export const metadata: Metadata = {
 export default async function HistorialPage() {
   const supabase = await createClient()
 
-  // Verifica sesión
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Trae las compras del usuario con la info del evento
-  // y las boletas individuales de cada compra
-  const { data: compras, error } = await supabase
+  // ← NUEVO: trae el perfil del usuario
+  const { data: perfil } = await supabase
+    .from('profiles')
+    .select('nombre, email')
+    .eq('id', user.id)
+    .single()
+
+  const { data: compras } = await supabase
     .from('compras')
     .select(`
       *,
@@ -32,7 +37,6 @@ export default async function HistorialPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
 
-      {/* Encabezado */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Mis boletas</h1>
         <p className="text-gray-500 text-sm mt-1">
@@ -40,21 +44,14 @@ export default async function HistorialPage() {
         </p>
       </div>
 
-      {/* Sin compras */}
       {(!compras || compras.length === 0) && (
         <div className="text-center py-20 bg-white rounded-2xl border border-gray-100">
           <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <ShoppingBag className="w-8 h-8 text-indigo-300" />
           </div>
-          <h2 className="font-semibold text-gray-900 mb-2">
-            No tienes compras aún
-          </h2>
-          <p className="text-gray-400 text-sm mb-6">
-            Cuando compres boletas aparecerán aquí
-          </p>
-          
-          {/* ✅ Corregido: Agregada la etiqueta Link de apertura correcta */}
-          <Link 
+          <h2 className="font-semibold text-gray-900 mb-2">No tienes compras aún</h2>
+          <p className="text-gray-400 text-sm mb-6">Cuando compres boletas aparecerán aquí</p>
+          <Link
             href="/eventos"
             className="inline-flex px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors"
           >
@@ -63,18 +60,13 @@ export default async function HistorialPage() {
         </div>
       )}
 
-      {/* Lista de compras */}
       {compras && compras.length > 0 && (
         <div className="space-y-4">
           {compras.map((compra) => (
-            <div
-              key={compra.id}
-              className="bg-white rounded-2xl border border-gray-100 overflow-hidden"
-            >
-              {/* Cabecera de la compra */}
+            <div key={compra.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+
               <div className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
 
-                {/* Imagen del evento */}
                 <div className="w-full sm:w-24 h-24 rounded-xl overflow-hidden bg-gradient-to-br from-indigo-400 to-purple-500 flex-shrink-0">
                   {compra.evento?.imagen_url ? (
                     <img
@@ -89,14 +81,11 @@ export default async function HistorialPage() {
                   )}
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <h3 className="font-semibold text-gray-900 truncate">
                       {compra.evento?.titulo ?? 'Evento eliminado'}
                     </h3>
-
-                    {/* Badge de estado */}
                     <span className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${
                       compra.estado === 'completado'
                         ? 'bg-green-100 text-green-700'
@@ -125,7 +114,6 @@ export default async function HistorialPage() {
                     )}
                   </div>
 
-                  {/* Resumen de la compra */}
                   <div className="flex items-center gap-4 mt-3">
                     <span className="text-xs text-gray-400">
                       {compra.cantidad} boleta{compra.cantidad > 1 ? 's' : ''}
@@ -142,9 +130,26 @@ export default async function HistorialPage() {
                 </div>
               </div>
 
-              {/* Boletas individuales — componente cliente para expandir */}
+              {/* ← CAMBIO: pasa todos los datos necesarios */}
               {compra.boletas && compra.boletas.length > 0 && (
-                <BoletasDetalle boletas={compra.boletas} />
+                <BoletasDetalle
+                  boletas={compra.boletas}
+                  compra={{
+                    cantidad: compra.cantidad,
+                    total: compra.total,
+                    created_at: compra.created_at,
+                  }}
+                  evento={{
+                    titulo: compra.evento?.titulo ?? 'Evento',
+                    fecha: compra.evento?.fecha ?? '',
+                    lugar: compra.evento?.lugar ?? '',
+                    precio: compra.evento?.precio ?? 0,
+                  }}
+                  usuario={{
+                    nombre: perfil?.nombre ?? 'Usuario',
+                    email: perfil?.email ?? user.email ?? '',
+                  }}
+                />
               )}
 
             </div>
