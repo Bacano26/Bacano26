@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Ticket, ShoppingBag,
-  Plus, ArrowLeft
+  Plus, ArrowLeft,  QrCode 
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +13,7 @@ const links = [
   { href: '/admin',          label: 'Dashboard',  icono: <LayoutDashboard className="w-4 h-4" />, exact: true },
   { href: '/admin/eventos',  label: 'Eventos',    icono: <Ticket className="w-4 h-4" />,          exact: false },
   { href: '/admin/ventas',   label: 'Ventas',     icono: <ShoppingBag className="w-4 h-4" />,     exact: false },
+  { href: '/admin/scanner',  label: 'Escáner QR', icono: <QrCode className="w-4 h-4" />,          exact: false },  // ← nuevo
 ]
 
 export default function AdminSidebar() {
