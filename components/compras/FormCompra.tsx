@@ -41,6 +41,31 @@ export default function FormCompra({ evento, userId }: Props) {
     setError('')
 
     try {
+      // ← NUEVO: verifica disponibilidad en tiempo real
+      const { data: eventoActual } = await supabase
+        .from('eventos')
+        .select('boletas_vendidas, capacidad')
+        .eq('id', evento.id)
+        .single()
+
+      if (!eventoActual) {
+        setError('Error verificando disponibilidad')
+        return
+      }
+
+      const disponibles = eventoActual.capacidad - eventoActual.boletas_vendidas
+
+      if (disponibles <= 0) {
+        setError('Lo sentimos, este evento se agotó')
+        return
+      }
+
+      if (cantidad > disponibles) {
+        setError(`Solo quedan ${disponibles} boletas disponibles`)
+        return
+      }
+      // ← FIN VERIFICACIÓN
+
       // PASO 1: Crear la compra
       const { data: compra, error: errorCompra } = await supabase
         .from('compras')
@@ -83,7 +108,7 @@ export default function FormCompra({ evento, userId }: Props) {
       // PASO 3: Actualizar boletas vendidas
       await supabase
         .from('eventos')
-        .update({ boletas_vendidas: evento.boletas_vendidas + cantidad })
+        .update({ boletas_vendidas: eventoActual.boletas_vendidas + cantidad })
         .eq('id', evento.id)
 
       setCodigosGenerados(codigos)
