@@ -1,4 +1,6 @@
 // app/(main)/eventos/page.tsx
+// Revalida la página cada 30 segundos automáticamente
+export const revalidate = 30
 import { createClient } from '@/lib/supabase/server'
 import EventoCard from '@/components/eventos/EventoCard'
 import { Ticket, Search } from 'lucide-react'

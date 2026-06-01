@@ -1,4 +1,6 @@
 // app/(main)/page.tsx
+// Revalida la página cada 30 segundos automáticamente
+export const revalidate = 30
 import Link from 'next/link'
 import { ArrowRight, Ticket, Shield, Zap } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
