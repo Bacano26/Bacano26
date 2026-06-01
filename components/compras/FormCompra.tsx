@@ -7,7 +7,7 @@ import { Minus, Plus, ShoppingCart, CheckCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrecio } from '@/lib/utils'
 import type { Evento } from '@/types'
-import BoletaPDF from '@/components/compras/BoletaPDF'  // ← NUEVO
+import BoletaPDF from '@/components/compras/BoletaPDF'
 
 interface Props {
   evento: Evento
@@ -23,8 +23,8 @@ export default function FormCompra({ evento, userId }: Props) {
   const [error, setError] = useState('')
   const [exitoso, setExitoso] = useState(false)
   const [codigosGenerados, setCodigosGenerados] = useState<string[]>([])
-  const [nombreUsuario, setNombreUsuario] = useState('')  // ← NUEVO
-  const [emailUsuario, setEmailUsuario] = useState('')    // ← NUEVO
+  const [nombreUsuario, setNombreUsuario] = useState('')
+  const [emailUsuario, setEmailUsuario] = useState('')
 
   const boletasRestantes = evento.capacidad - evento.boletas_vendidas
   const maximo = Math.min(10, boletasRestantes)
@@ -68,7 +68,7 @@ export default function FormCompra({ evento, userId }: Props) {
         return
       }
 
-      // ← NUEVO: trae el perfil del usuario para el PDF
+      // Trae el perfil del usuario para el PDF
       const { data: perfil } = await supabase
         .from('profiles')
         .select('nombre, email')
@@ -117,11 +117,11 @@ export default function FormCompra({ evento, userId }: Props) {
         return
       }
 
-      // PASO 3: Actualizar boletas vendidas
-      await supabase
-        .from('eventos')
-        .update({ boletas_vendidas: eventoActual.boletas_vendidas + cantidad })
-        .eq('id', evento.id)
+      // PASO 3: Incremento atómico en la BD ← CORREGIDO
+      await supabase.rpc('incrementar_boletas_vendidas', {
+        p_evento_id: evento.id,
+        p_cantidad: cantidad,
+      })
 
       setCodigosGenerados(codigos)
       setExitoso(true)
@@ -148,7 +148,6 @@ export default function FormCompra({ evento, userId }: Props) {
           </p>
         </div>
 
-        {/* ← NUEVO: muestra cada boleta con botón de descarga PDF */}
         <div className="space-y-4 mb-6">
           {codigosGenerados.map((codigo, i) => (
             <BoletaPDF
