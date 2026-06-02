@@ -44,12 +44,22 @@ export default function FormCompra({ evento, userId }: Props) {
     setError('')
 
     try {
-      // Verifica disponibilidad en tiempo real
-      const { data: eventoActual } = await supabase
-        .from('eventos')
-        .select('boletas_vendidas, capacidad')
-        .eq('id', evento.id)
-        .single()
+      // ✅ PASO 0: verifica disponibilidad Y trae perfil en paralelo
+      const [
+        { data: eventoActual },
+        { data: perfil }
+      ] = await Promise.all([
+        supabase
+          .from('eventos')
+          .select('boletas_vendidas, capacidad')
+          .eq('id', evento.id)
+          .single(),
+        supabase
+          .from('profiles')
+          .select('nombre, email')
+          .eq('id', userId)
+          .single(),
+      ])
 
       if (!eventoActual) {
         setError('Error verificando disponibilidad')
@@ -67,13 +77,6 @@ export default function FormCompra({ evento, userId }: Props) {
         setError(`Solo quedan ${disponibles} boletas disponibles`)
         return
       }
-
-      // Trae el perfil del usuario para el PDF
-      const { data: perfil } = await supabase
-        .from('profiles')
-        .select('nombre, email')
-        .eq('id', userId)
-        .single()
 
       setNombreUsuario(perfil?.nombre ?? 'Usuario')
       setEmailUsuario(perfil?.email ?? '')
@@ -96,32 +99,27 @@ export default function FormCompra({ evento, userId }: Props) {
         return
       }
 
-      // PASO 2: Crear boletas individuales
+      // PASO 2: Genera los códigos
       const codigos: string[] = []
       const boletas = Array.from({ length: cantidad }, () => {
         const codigo = generarCodigo()
         codigos.push(codigo)
-        return {
-          compra_id: compra.id,
-          codigo,
-          usado: false,
-        }
+        return { compra_id: compra.id, codigo, usado: false }
       })
 
-      const { error: errorBoletas } = await supabase
-        .from('boletas')
-        .insert(boletas)
+      // ✅ PASO 3: Inserta boletas e incrementa vendidas en paralelo
+      const [{ error: errorBoletas }] = await Promise.all([
+        supabase.from('boletas').insert(boletas),
+        supabase.rpc('incrementar_boletas_vendidas', {
+          p_evento_id: evento.id,
+          p_cantidad: cantidad,
+        }),
+      ])
 
       if (errorBoletas) {
         setError('Error generando boletas. Contacta soporte.')
         return
       }
-
-      // PASO 3: Incremento atómico en la BD ← CORREGIDO
-      await supabase.rpc('incrementar_boletas_vendidas', {
-        p_evento_id: evento.id,
-        p_cantidad: cantidad,
-      })
 
       setCodigosGenerados(codigos)
       setExitoso(true)
