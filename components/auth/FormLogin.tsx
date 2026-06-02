@@ -16,8 +16,8 @@ interface Errores {
 
 export default function FormLogin() {
   const router = useRouter()
-  const searchParams = useSearchParams()  // ← NUEVO
-  const next = searchParams.get('next')  // ← captura la ruta original
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next')
   const supabase = createClient()
 
   const [email, setEmail] = useState('')
@@ -74,11 +74,10 @@ export default function FormLogin() {
           .eq('id', data.user.id)
           .single()
 
-        // ← CAMBIO: redirige al destino original o según el rol
         if (profile?.rol === 'admin') {
           router.push('/admin')
         } else {
-          router.push(next ?? '/')  // ← si venía de /comprar/123 regresa ahí
+          router.push(next ?? '/')
         }
 
         router.refresh()
