@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -16,6 +16,8 @@ interface Errores {
 
 export default function FormLogin() {
   const router = useRouter()
+  const searchParams = useSearchParams()  // ← NUEVO
+  const next = searchParams.get('next')  // ← captura la ruta original
   const supabase = createClient()
 
   const [email, setEmail] = useState('')
@@ -55,7 +57,6 @@ export default function FormLogin() {
       })
 
       if (error) {
-        // "Invalid login credentials" es el error más común
         if (error.message.includes('Invalid login credentials')) {
           setErrores({ general: 'Email o contraseña incorrectos' })
         } else if (error.message.includes('Email not confirmed')) {
@@ -66,7 +67,6 @@ export default function FormLogin() {
         return
       }
 
-      // Login exitoso → verifica si es admin para redirigir
       if (data.user) {
         const { data: profile } = await supabase
           .from('profiles')
@@ -74,14 +74,13 @@ export default function FormLogin() {
           .eq('id', data.user.id)
           .single()
 
-        // Redirige según el rol
+        // ← CAMBIO: redirige al destino original o según el rol
         if (profile?.rol === 'admin') {
           router.push('/admin')
         } else {
-          router.push('/')
+          router.push(next ?? '/')  // ← si venía de /comprar/123 regresa ahí
         }
 
-        // Refresca para que el middleware detecte la nueva sesión
         router.refresh()
       }
 
@@ -144,7 +143,6 @@ export default function FormLogin() {
           </button>
         </div>
 
-        {/* Olvidé mi contraseña */}
         <div className="flex justify-end">
           <Link href="/recuperar-password" className="text-xs text-indigo-600 hover:underline">
             ¿Olvidaste tu contraseña?
