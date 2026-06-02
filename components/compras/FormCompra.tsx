@@ -25,9 +25,12 @@ export default function FormCompra({ evento, userId }: Props) {
   const [codigosGenerados, setCodigosGenerados] = useState<string[]>([])
   const [nombreUsuario, setNombreUsuario] = useState('')
   const [emailUsuario, setEmailUsuario] = useState('')
+  // ✅ Estado local de boletas disponibles
+  const [boletasDisponibles, setBoletasDisponibles] = useState(
+    evento.capacidad - evento.boletas_vendidas
+  )
 
-  const boletasRestantes = evento.capacidad - evento.boletas_vendidas
-  const maximo = Math.min(10, boletasRestantes)
+  const maximo = Math.min(10, boletasDisponibles)
   const total = evento.precio * cantidad
 
   function generarCodigo(): string {
@@ -44,7 +47,7 @@ export default function FormCompra({ evento, userId }: Props) {
     setError('')
 
     try {
-      // ✅ PASO 0: verifica disponibilidad Y trae perfil en paralelo
+      // PASO 0: verifica disponibilidad Y trae perfil en paralelo
       const [
         { data: eventoActual },
         { data: perfil }
@@ -107,7 +110,7 @@ export default function FormCompra({ evento, userId }: Props) {
         return { compra_id: compra.id, codigo, usado: false }
       })
 
-      // ✅ PASO 3: Inserta boletas e incrementa vendidas en paralelo
+      // PASO 3: Inserta boletas e incrementa vendidas en paralelo
       const [{ error: errorBoletas }] = await Promise.all([
         supabase.from('boletas').insert(boletas),
         supabase.rpc('incrementar_boletas_vendidas', {
@@ -121,6 +124,8 @@ export default function FormCompra({ evento, userId }: Props) {
         return
       }
 
+      // ✅ Actualiza el estado local de disponibilidad
+      setBoletasDisponibles(prev => prev - cantidad)
       setCodigosGenerados(codigos)
       setExitoso(true)
 
@@ -205,7 +210,10 @@ export default function FormCompra({ evento, userId }: Props) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <p className="text-sm font-medium text-gray-700">Cantidad</p>
-          <p className="text-xs text-gray-400 mt-0.5">Máximo {maximo} por compra</p>
+          {/* ✅ Muestra disponibilidad actualizada */}
+          <p className="text-xs text-gray-400 mt-0.5">
+            {boletasDisponibles} disponibles · Máximo {maximo} por compra
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -247,9 +255,10 @@ export default function FormCompra({ evento, userId }: Props) {
         </div>
       )}
 
+      {/* ✅ Usa boletasDisponibles en vez de boletasRestantes */}
       <button
         onClick={handleComprar}
-        disabled={cargando || boletasRestantes === 0}
+        disabled={cargando || boletasDisponibles === 0}
         className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
       >
         {cargando ? (
