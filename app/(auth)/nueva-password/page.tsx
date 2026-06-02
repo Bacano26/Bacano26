@@ -16,19 +16,44 @@ export default function NuevaPasswordPage() {
   const [cargando, setCargando] = useState(false)
   const [exitoso, setExitoso] = useState(false)
   const [error, setError] = useState('')
-  const [sesionLista, setSesionLista] = useState(false)
+  const [listo, setListo] = useState(false)        // ← controla si mostrar el form
+  const [verificando, setVerificando] = useState(true)  // ← muestra spinner inicial
 
   useEffect(() => {
-    // Supabase establece la sesión automáticamente cuando
-    // el usuario llega desde el link del email
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event) => {
-        if (event === 'PASSWORD_RECOVERY') {
-          setSesionLista(true)
-        }
+    async function verificar() {
+      // Primero verifica si ya hay una sesión activa
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (session) {
+        // Ya hay sesión → muestra el formulario
+        setListo(true)
+        setVerificando(false)
+        return
       }
-    )
-    return () => subscription.unsubscribe()
+
+      // Si no hay sesión, escucha el evento PASSWORD_RECOVERY
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (event, session) => {
+          if (event === 'PASSWORD_RECOVERY' || session) {
+            setListo(true)
+            setVerificando(false)
+          }
+        }
+      )
+
+      // Si después de 5 segundos no hay sesión → link expirado
+      const timeout = setTimeout(() => {
+        setVerificando(false)
+        setListo(false)
+      }, 5000)
+
+      return () => {
+        subscription.unsubscribe()
+        clearTimeout(timeout)
+      }
+    }
+
+    verificar()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -53,17 +78,17 @@ export default function NuevaPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password })
 
     if (error) {
-      setError('Error al actualizar la contraseña. Intenta de nuevo.')
-    } else {
-      setExitoso(true)
-      // Redirige al login después de 3 segundos
-      setTimeout(() => router.push('/login'), 3000)
+      setError('Error al actualizar. El link puede haber expirado, solicita uno nuevo.')
+      setCargando(false)
+      return
     }
 
+    setExitoso(true)
+    setTimeout(() => router.push('/login'), 3000)
     setCargando(false)
   }
 
-  // Pantalla de éxito
+  // ── PANTALLA DE ÉXITO ──
   if (exitoso) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
@@ -80,6 +105,43 @@ export default function NuevaPasswordPage() {
     )
   }
 
+  // ── VERIFICANDO SESIÓN ──
+  if (verificando) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
+        <svg className="animate-spin w-10 h-10 text-indigo-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <p className="text-gray-500 text-sm">Verificando enlace...</p>
+      </div>
+    )
+  }
+
+  // ── LINK EXPIRADO O INVÁLIDO ──
+  if (!listo) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Lock className="w-8 h-8 text-red-500" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">
+          Link expirado
+        </h2>
+        <p className="text-gray-500 text-sm mb-6">
+          Este enlace ya no es válido. Solicita uno nuevo.
+        </p>
+        <button
+          onClick={() => router.push('/recuperar-password')}
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm transition-colors"
+        >
+          Solicitar nuevo link
+        </button>
+      </div>
+    )
+  }
+
+  // ── FORMULARIO ──
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
       <div className="mb-8">
@@ -96,7 +158,6 @@ export default function NuevaPasswordPage() {
           </div>
         )}
 
-        {/* Nueva contraseña */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Nueva contraseña
@@ -120,7 +181,6 @@ export default function NuevaPasswordPage() {
           </div>
         </div>
 
-        {/* Confirmar contraseña */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Confirmar contraseña

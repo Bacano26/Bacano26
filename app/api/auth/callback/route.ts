@@ -17,10 +17,10 @@ export async function GET(request: NextRequest) {
     
     if (!error) {
       // Sesión creada exitosamente → redirige al destino
-      return NextResponse.redirect('${origin}${next}')
+      return NextResponse.redirect(`${origin}${next}`)
     }
   }
 
   // Si algo falla → redirige al login con error
-  return NextResponse.redirect('${origin}/login?error=auth_callback_failed')
+  return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`)
 }
