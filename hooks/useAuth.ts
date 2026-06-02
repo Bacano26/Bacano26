@@ -1,19 +1,21 @@
 // hooks/useAuth.ts
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
 
 interface AuthState {
-  user: User | null        // usuario de Supabase Auth
-  profile: Profile | null  // perfil de tu tabla profiles
+  user: User | null
+  profile: Profile | null
   cargando: boolean
 }
 
 export function useAuth(): AuthState {
-  const supabase = createClient()
+  // ✅ useMemo evita recrear el cliente en cada render
+  const supabase = useMemo(() => createClient(), [])
+
   const [estado, setEstado] = useState<AuthState>({
     user: null,
     profile: null,
@@ -21,12 +23,10 @@ export function useAuth(): AuthState {
   })
 
   useEffect(() => {
-    // 1. Obtiene la sesión actual al montar el componente
     async function obtenerSesion() {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (user) {
-        // Si hay usuario, busca su perfil
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -41,9 +41,6 @@ export function useAuth(): AuthState {
 
     obtenerSesion()
 
-    // 2. Escucha cambios de sesión (login, logout)
-    // onAuthStateChange se dispara automáticamente cuando el usuario
-    // inicia o cierra sesión en cualquier pestaña
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
@@ -60,10 +57,8 @@ export function useAuth(): AuthState {
       }
     )
 
-    // 3. Limpia la suscripción cuando el componente se desmonta
-    // Sin esto habría memory leaks
     return () => subscription.unsubscribe()
-  }, [])
+  }, [supabase])
 
   return estado
 }

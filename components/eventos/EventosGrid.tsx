@@ -12,22 +12,24 @@ interface Props {
 }
 
 export default function EventosGrid({ eventosIniciales }: Props) {
-  const supabase = createClient()
   const [eventos, setEventos] = useState<Evento[]>(eventosIniciales)
 
-  async function cargarEventos() {
-    const { data } = await supabase
-      .from('eventos')
-      .select('*')
-      .eq('activo', true)
-      .gte('fecha', new Date().toISOString())
-      .order('fecha', { ascending: true })
-      .limit(6)
-
-    if (data) setEventos(data)
-  }
-
   useEffect(() => {
+    // ✅ cliente dentro del effect — evita memory leak
+    const supabase = createClient()
+
+    async function cargarEventos() {
+      const { data } = await supabase
+        .from('eventos')
+        .select('*')
+        .eq('activo', true)
+        .gte('fecha', new Date().toISOString())
+        .order('fecha', { ascending: true })
+        .limit(6)
+
+      if (data) setEventos(data)
+    }
+
     const canal = supabase
       .channel('eventos-publicos')
       .on('postgres_changes',

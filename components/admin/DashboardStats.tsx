@@ -1,16 +1,17 @@
 // components/admin/DashboardStats.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Ticket, ShoppingBag, TrendingUp, RefreshCw } from 'lucide-react'
 import { formatPrecio } from '@/lib/utils'
+import type { Evento } from '@/types'
 
 interface Stats {
   totalEventos: number
   totalCompras: number
   totalIngresos: number
-  eventosRecientes: any[]
+  eventosRecientes: Evento[]  // ✅ tipado correcto
 }
 
 interface Props {
@@ -18,7 +19,9 @@ interface Props {
 }
 
 export default function DashboardStats({ statsIniciales }: Props) {
-  const supabase = createClient()
+  // ✅ useMemo evita recrear el cliente en cada render
+  const supabase = useMemo(() => createClient(), [])
+
   const [stats, setStats] = useState<Stats>(statsIniciales)
   const [actualizando, setActualizando] = useState(false)
   const [ultimaActualizacion, setUltimaActualizacion] = useState(new Date())
@@ -42,7 +45,7 @@ export default function DashboardStats({ statsIniciales }: Props) {
       totalEventos: totalEventos ?? 0,
       totalCompras: totalCompras ?? 0,
       totalIngresos: ventas?.reduce((sum, v) => sum + v.total, 0) ?? 0,
-      eventosRecientes: eventosRecientes ?? [],
+      eventosRecientes: (eventosRecientes ?? []) as Evento[],
     })
 
     setUltimaActualizacion(new Date())
@@ -50,7 +53,7 @@ export default function DashboardStats({ statsIniciales }: Props) {
   }
 
   useEffect(() => {
-    // Escucha cambios en compras en tiempo real
+    // ✅ canales dentro del effect con referencia estable de supabase
     const canalCompras = supabase
       .channel('compras-realtime')
       .on('postgres_changes',
@@ -59,7 +62,6 @@ export default function DashboardStats({ statsIniciales }: Props) {
       )
       .subscribe()
 
-    // Escucha cambios en eventos en tiempo real
     const canalEventos = supabase
       .channel('eventos-realtime')
       .on('postgres_changes',
@@ -72,7 +74,7 @@ export default function DashboardStats({ statsIniciales }: Props) {
       supabase.removeChannel(canalCompras)
       supabase.removeChannel(canalEventos)
     }
-  }, [])
+  }, [supabase])
 
   const statsCards = [
     {
@@ -97,8 +99,6 @@ export default function DashboardStats({ statsIniciales }: Props) {
 
   return (
     <div>
-
-      {/* Indicador de última actualización */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${actualizando ? 'bg-amber-400 animate-pulse' : 'bg-green-400 animate-pulse'}`} />
@@ -116,7 +116,6 @@ export default function DashboardStats({ statsIniciales }: Props) {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {statsCards.map((stat, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5">
@@ -131,7 +130,6 @@ export default function DashboardStats({ statsIniciales }: Props) {
         ))}
       </div>
 
-      {/* Eventos recientes */}
       <div className="bg-white rounded-2xl border border-gray-100 p-6">
         <h2 className="font-semibold text-gray-900 mb-4">Eventos recientes</h2>
         <div className="space-y-3">
