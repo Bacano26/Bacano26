@@ -1,5 +1,6 @@
 // app/(auth)/layout.tsx
 import Link from 'next/link'
+import Image from 'next/image';
 
 // Este layout solo aplica a /login y /register
 // Los paréntesis en (auth) son un "Route Group" → NO afectan la URL
@@ -13,11 +14,9 @@ export default function AuthLayout({
       
       {/* Header simple con logo */}
       <header className="p-6">
-        <Link href="/" className="flex items-center gap-2 w-fit">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">B</span>
-          </div>
-          <span className="font-semibold text-gray-900">Boletas App</span>
+        <Link href="/" className="flex items-center gap-2 w-fit">         
+          <Image src="/logo.svg" alt="Logo Bacano" width={28} height={28} className="h-7 w-7"/>
+          <span className="font-semibold text-gray-900">Bacano</span>
         </Link>
       </header>
 
@@ -30,7 +29,7 @@ export default function AuthLayout({
 
       {/* Footer simple */}
       <footer className="p-6 text-center text-xs text-gray-400">
-        © {new Date().getFullYear()} Boletas App
+        © {new Date().getFullYear()} Bacano.com
       </footer>
     </div>
   )
