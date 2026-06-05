@@ -289,7 +289,7 @@ export default function BoletaPDF({ boleta, compra, evento, usuario, numeroBolet
         }}>
           <div>
             <div style={{ fontSize: '10px', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>
-              Boletas App
+              Bacano
             </div>
             <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{evento.titulo}</div>
           </div>
