@@ -29,32 +29,7 @@ export default async function HomePage() {
     <div>
 
       {/* ── HERO ── */}
-      <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 text-white">
-        <div className="max-w-6xl mx-auto px-4 py-20 text-center">
-          <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 text-sm mb-6">
-            <Zap className="w-3.5 h-3.5" />
-            <span>Compra segura y rápida</span>
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
-            Los mejores eventos,<br />
-            <span className="text-indigo-200">en un solo lugar</span>
-          </h1>
-          <p className="text-indigo-200 text-lg mb-8 max-w-xl mx-auto">
-            Encuentra conciertos, obras de teatro, deportes y más.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/eventos"
-              className="inline-flex items-center gap-2 bg-white text-indigo-700 font-semibold px-6 py-3 rounded-xl hover:bg-indigo-50 transition-colors">
-              Ver todos los eventos <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link href="/register"
-              className="inline-flex items-center gap-2 bg-white/10 border border-white/30 font-semibold px-6 py-3 rounded-xl hover:bg-white/20 transition-colors">
-              Crear cuenta gratis
-            </Link>
-          </div>
-        </div>
-      </section>
-
+  
       {/* ── BANNER ── */}
       {eventosBanner.length > 0 && (
         <section>
@@ -65,7 +40,7 @@ export default async function HomePage() {
       {/* ── BENEFICIOS ── */}
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 py-10">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-3 gap-2 md:gap-6">
             {[
               { icono: <Zap className="w-5 h-5" />,    titulo: 'Compra en segundos', desc: 'Proceso simple y rápido' },
               { icono: <Shield className="w-5 h-5" />, titulo: 'Pago seguro',         desc: 'Tus datos siempre protegidos' },

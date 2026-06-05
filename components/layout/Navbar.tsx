@@ -1,8 +1,8 @@
-// components/layout/Navbar.tsx
 'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'; 
 import { usePathname, useRouter } from 'next/navigation'
 import { Menu, X, Ticket, LogOut, LayoutDashboard } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -30,15 +30,13 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
+    <nav className="sticky top-0 z-50 bg-white/70 border-b border-gray-100 shadow-sm">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-              <Ticket className="w-4 h-4 text-white" />
-            </div>
+            <Image src="/logo.svg" alt="Logo Bacano" width={28} height={28} className="h-7 w-7"/>
             <span className="font-bold text-gray-900">Bacano</span>
           </Link>
 
@@ -60,36 +58,52 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Derecha */}
-          <div className="hidden md:flex items-center gap-2">
+          {/* Extremo Derecho */}
+          <div className="flex items-center gap-2">
+            
+            {/* CASO 1: USUARIO LOGUEADO (Se ve en Móvil y Escritorio) */}
             {user ? (
               <div className="relative">
                 <button
                   onClick={() => setDropdownAbierto(!dropdownAbierto)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-2 px-2 md:px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 border border-indigo-200">
                     <span className="text-xs font-semibold text-indigo-600">
                       {profile?.nombre?.charAt(0).toUpperCase() ?? 'U'}
                     </span>
                   </div>
-                  <span className="text-sm font-medium text-gray-700">
+                  {/* El nombre escrito solo aparece en computadora */}
+                  <span className="hidden md:inline text-sm font-medium text-gray-700">
                     {profile?.nombre?.split(' ')[0] ?? 'Usuario'}
                   </span>
                 </button>
 
+                {/* Menú desplegable para el usuario (sirve tanto para clic en móvil como en PC) */}
                 {dropdownAbierto && (
                   <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setDropdownAbierto(false)}
-                    />
+                    <div className="fixed inset-0 z-10" onClick={() => setDropdownAbierto(false)} />
                     <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-100 rounded-xl shadow-lg z-20 py-1 overflow-hidden">
-                      <div className="px-4 py-3 border-b border-gray-50">
-                        <p className="text-xs font-medium text-gray-900 truncate">
-                          {profile?.nombre}
+                      {/* En móvil, como no se ve el nombre afuera, se lo mostramos aquí arriba */}
+                      <div className="px-4 py-3 border-b border-gray-50 bg-gray-50/50 md:bg-transparent">
+                        <p className="text-xs font-semibold text-gray-900 truncate">
+                          {profile?.nombre ?? 'Usuario'}
                         </p>
                         <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                      </div>
+
+                      {/* Links exclusivos de móvil dentro del menú del usuario */}
+                      <div className="block md:hidden border-b border-gray-50 py-1">
+                        {links.map(link => (
+                          <Link
+                            key={link.href}
+                            href={link.href}
+                            onClick={() => setDropdownAbierto(false)}
+                            className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                          >
+                            {link.label}
+                          </Link>
+                        ))}
                       </div>
 
                       <Link
@@ -126,35 +140,40 @@ export default function Navbar() {
                 )}
               </div>
             ) : (
+              /* CASO 2: USUARIO NO LOGUEADO */
               <>
-                <Link
-                  href="/login"
-                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-50 transition-colors"
+                {/* Botones normales en Escritorio */}
+                <div className="hidden md:flex items-center gap-2">
+                  <Link
+                    href="/login"
+                    className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Iniciar sesión
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                  >
+                    Registrarse
+                  </Link>
+                </div>
+
+                {/* Hambuerguesa en celular SOLO si NO está logueado */}
+                <button
+                  className="md:hidden p-2 rounded-lg hover:bg-gray-50"
+                  onClick={() => setMenuAbierto(!menuAbierto)}
                 >
-                  Iniciar sesión
-                </Link>
-                <Link
-                  href="/register"
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                >
-                  Registrarse
-                </Link>
+                  {menuAbierto ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
               </>
             )}
-          </div>
 
-          {/* Hamburguesa móvil */}
-          <button
-            className="md:hidden p-2 rounded-lg hover:bg-gray-50"
-            onClick={() => setMenuAbierto(!menuAbierto)}
-          >
-            {menuAbierto ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+          </div>
         </div>
       </div>
 
-      {/* Menú móvil */}
-      {menuAbierto && (
+      {/* Menú móvil de la hamburguesa (SOLO abre si NO está logueado) */}
+      {menuAbierto && !user && (
         <div className="md:hidden border-t border-gray-100 bg-white px-4 py-3 space-y-1">
           {links.map(link => (
             <Link
@@ -171,31 +190,15 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
-
           <div className="pt-2 border-t border-gray-100">
-            {user ? (
-              <>
-                <Link href="/historial" onClick={() => setMenuAbierto(false)}
-                  className="block px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
-                  Mis boletas
-                </Link>
-                <button onClick={cerrarSesion}
-                  className="block w-full text-left px-4 py-2.5 rounded-lg text-sm text-red-600 hover:bg-red-50">
-                  Cerrar sesión
-                </button>
-              </>
-            ) : (
-              <>
-                <Link href="/login" onClick={() => setMenuAbierto(false)}
-                  className="block px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
-                  Iniciar sesión
-                </Link>
-                <Link href="/register" onClick={() => setMenuAbierto(false)}
-                  className="block px-4 py-2.5 rounded-lg text-sm font-medium text-indigo-600 hover:bg-indigo-50">
-                  Registrarse
-                </Link>
-              </>
-            )}
+            <Link href="/login" onClick={() => setMenuAbierto(false)}
+              className="block px-4 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+              Iniciar sesión
+            </Link>
+            <Link href="/register" onClick={() => setMenuAbierto(false)}
+              className="block px-4 py-2.5 rounded-lg text-sm font-medium text-indigo-600 hover:bg-indigo-50">
+              Registrarse
+            </Link>
           </div>
         </div>
       )}
