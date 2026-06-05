@@ -66,7 +66,7 @@ export default async function EventoDetallePage({ params }: Props) {
   const pocasUnidades = boletasRestantes <= evento.capacidad * 0.2 && !agotado
 
   // ✅ SOLUCIÓN EN EL SERVIDOR: Construimos el texto de WhatsApp sin depender del objeto 'window'
-  const urlCompartir = `https://bacanatickets.com/eventos/${id}` // Reemplaza por tu dominio real cuando lo lances
+  const urlCompartir = `https://bacano26-olmeruiz2003-9559s-projects.vercel.app/eventos/${id}` // Reemplaza por tu dominio real cuando lo lances
   const textoWhatsApp = encodeURIComponent(`¡Mira este evento! *${evento.titulo}* 🎫\nAdquiere tus boletas aquí: ${urlCompartir}`)
 
   return (
