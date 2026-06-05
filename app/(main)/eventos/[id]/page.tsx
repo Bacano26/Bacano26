@@ -12,18 +12,40 @@ type Props = {
   params: Promise<{ id: string }>
 }
 
-// Genera el título de la pestaña dinámicamente según el evento
+// ✅ SECCIÓN CORREGIDA: Agregamos Open Graph para que WhatsApp lea la foto y los textos
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const supabase = await createClient()
   const { data: evento } = await supabase
     .from('eventos')
-    .select('titulo')
+    .select('titulo, descripcion, imagen_url')
     .eq('id', id)
     .single()
 
+  if (!evento) {
+    return { title: 'Evento | Boletas App' }
+  }
+
+  const tituloCompleto = `${evento.titulo} | Boletas App`
+  const descripcionCorta = evento.descripcion || 'Compra tus boletas digitales al instante de forma 100% segura.'
+
   return {
-    title: evento ? `${evento.titulo} | Boletas App` : 'Evento | Boletas App',
+    title: tituloCompleto,
+    description: descripcionCorta,
+    // Aquí es donde sucede la magia para las redes sociales
+    openGraph: {
+      title: tituloCompleto,
+      description: descripcionCorta,
+      type: 'article',
+      images: evento.imagen_url ? [{ url: evento.imagen_url }] : [],
+    },
+    // Reglas específicas para Twitter/X
+    twitter: {
+      card: 'summary_large_image',
+      title: tituloCompleto,
+      description: descripcionCorta,
+      images: evento.imagen_url ? [evento.imagen_url] : [],
+    }
   }
 }
 
@@ -36,13 +58,16 @@ export default async function EventoDetallePage({ params }: Props) {
     .eq('id', id)
     .single()
 
-  // Si no existe el evento → página 404
   if (!evento || error) notFound()
 
   const boletasRestantes = evento.capacidad - evento.boletas_vendidas
   const porcentajeVendido = Math.round((evento.boletas_vendidas / evento.capacidad) * 100)
   const agotado = boletasRestantes === 0
   const pocasUnidades = boletasRestantes <= evento.capacidad * 0.2 && !agotado
+
+  // ✅ SOLUCIÓN EN EL SERVIDOR: Construimos el texto de WhatsApp sin depender del objeto 'window'
+  const urlCompartir = `https://bacanatickets.com/eventos/${id}` // Reemplaza por tu dominio real cuando lo lances
+  const textoWhatsApp = encodeURIComponent(`¡Mira este evento! *${evento.titulo}* 🎫\nAdquiere tus boletas aquí: ${urlCompartir}`)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -75,7 +100,7 @@ export default async function EventoDetallePage({ params }: Props) {
           </Link>
         </div>
 
-        {/* Badge agotado o pocas unidades */}
+        {/* Badge estado */}
         <div className="absolute top-4 right-4">
           {agotado && (
             <span className="bg-red-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
@@ -89,7 +114,7 @@ export default async function EventoDetallePage({ params }: Props) {
           )}
         </div>
 
-        {/* Título encima de la imagen */}
+        {/* Título */}
         <div className="absolute bottom-6 left-6 right-6">
           <h1 className="text-2xl md:text-4xl font-bold text-white drop-shadow-md">
             {evento.titulo}
@@ -101,10 +126,8 @@ export default async function EventoDetallePage({ params }: Props) {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-          {/* ── COLUMNA IZQUIERDA: info del evento ── */}
+          {/* Columna Izquierda */}
           <div className="lg:col-span-2 space-y-6">
-
-            {/* Datos principales */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
               <h2 className="font-semibold text-gray-900 text-lg mb-4">
                 Información del evento
@@ -146,7 +169,6 @@ export default async function EventoDetallePage({ params }: Props) {
                       }
                     </p>
 
-                    {/* Barra de progreso de ventas */}
                     <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
@@ -167,7 +189,6 @@ export default async function EventoDetallePage({ params }: Props) {
               </div>
             </div>
 
-            {/* Descripción */}
             {evento.descripcion && (
               <div className="bg-white rounded-2xl border border-gray-100 p-6">
                 <h2 className="font-semibold text-gray-900 text-lg mb-3">
@@ -178,10 +199,9 @@ export default async function EventoDetallePage({ params }: Props) {
                 </p>
               </div>
             )}
-
           </div>
 
-          {/* ── COLUMNA DERECHA: tarjeta de compra ── */}
+          {/* Columna Derecha */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl border border-gray-100 p-6 sticky top-24">
 
@@ -191,7 +211,6 @@ export default async function EventoDetallePage({ params }: Props) {
               </p>
               <p className="text-xs text-gray-400 mb-6">Impuestos incluidos</p>
 
-              {/* Botón principal */}
               {agotado ? (
                 <button
                   disabled
@@ -208,8 +227,7 @@ export default async function EventoDetallePage({ params }: Props) {
                 </Link>
               )}
 
-              {/* Info adicional */}
-              <div className="mt-4 space-y-2.5">
+              <div className="mt-4 space-y-2.5-gray-500 border-b border-gray-50 pb-4 mb-4">
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <div className="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
                     <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
@@ -222,18 +240,14 @@ export default async function EventoDetallePage({ params }: Props) {
                   </div>
                   Compra 100% segura
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <div className="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                  </div>
-                  Máximo 10 boletas por compra
-                </div>
               </div>
 
-              {/* Enlace seguro para compartir en Server Components */}
+              {/* ✅ ENLACE OPTIMIZADO: Usa la API web universal de WhatsApp con textos enriquecidos */}
               <a
-                href={`whatsapp://send?text=¡Mira este evento! ${evento.titulo}: ${typeof window !== 'undefined' ? window.location.href : ''}`}
-                className="mt-5 w-full py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 text-center"
+                href={`https://api.whatsapp.com/send?text=${textoWhatsApp}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 text-center"
               >
                 <Share2 className="w-4 h-4" />
                 Compartir en WhatsApp
