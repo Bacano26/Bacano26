@@ -45,7 +45,6 @@ export default function FormLogin() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-
     if (!validar()) return
 
     setCargando(true)
@@ -63,14 +62,25 @@ export default function FormLogin() {
         } else if (error.message.includes('Email not confirmed')) {
           setErrores({ general: 'Debes verificar tu email antes de iniciar sesión' })
         } else {
-          setErrores({ general: error.message })
+          setErrores({ general: 'Error al iniciar sesión. Intenta de nuevo.' })
         }
         return
       }
 
       if (data.user) {
-        // 🚀 redirección inmediata (sin bloqueos)
-        router.replace(next ?? '/')
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('rol')
+          .eq('id', data.user.id)
+          .single()
+
+        if (profile?.rol === 'admin') {
+          router.push('/admin')
+        } else {
+          router.push(next ?? '/')
+        }
+
+        router.refresh()
       }
 
     } catch (err) {
@@ -123,25 +133,17 @@ export default function FormLogin() {
             icono={<Lock className="w-4 h-4" />}
             autoComplete="current-password"
           />
-
           <button
             type="button"
             onClick={() => setMostrarPassword(!mostrarPassword)}
             className="absolute right-3 top-8 text-gray-400 hover:text-gray-600"
           >
-            {mostrarPassword ? (
-              <EyeOff className="w-4 h-4" />
-            ) : (
-              <Eye className="w-4 h-4" />
-            )}
+            {mostrarPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
 
         <div className="flex justify-end">
-          <Link
-            href="/recuperar-password"
-            className="text-xs text-indigo-600 hover:underline"
-          >
+          <Link href="/recuperar-password" className="text-xs text-indigo-600 hover:underline">
             ¿Olvidaste tu contraseña?
           </Link>
         </div>
