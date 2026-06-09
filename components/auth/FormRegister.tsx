@@ -1,17 +1,18 @@
 // components/auth/FormRegister.tsx
-'use client'  // ← Este componente usa estado del browser (useState, eventos)
+'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
+import { Mail, Lock, User, Eye, EyeOff, Phone, CreditCard } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 
-// Forma de los errores del formulario
 interface Errores {
   nombre?: string
+  cedula?: string
+  telefono?: string
   email?: string
   password?: string
   confirmPassword?: string
@@ -22,8 +23,9 @@ export default function FormRegister() {
   const router = useRouter()
   const supabase = createClient()
 
-  // Estado del formulario
   const [nombre, setNombre] = useState('')
+  const [cedula, setCedula] = useState('')
+  const [telefono, setTelefono] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -32,7 +34,6 @@ export default function FormRegister() {
   const [errores, setErrores] = useState<Errores>({})
   const [exitoso, setExitoso] = useState(false)
 
-  // Valida los campos ANTES de enviar al servidor
   function validar(): boolean {
     const nuevosErrores: Errores = {}
 
@@ -40,6 +41,18 @@ export default function FormRegister() {
       nuevosErrores.nombre = 'El nombre es requerido'
     } else if (nombre.trim().length < 2) {
       nuevosErrores.nombre = 'El nombre debe tener al menos 2 caracteres'
+    }
+
+    if (!cedula.trim()) {
+      nuevosErrores.cedula = 'La cédula es requerida'
+    } else if (!/^\d{6,12}$/.test(cedula.trim())) {
+      nuevosErrores.cedula = 'La cédula debe tener entre 6 y 12 dígitos'
+    }
+
+    if (!telefono.trim()) {
+      nuevosErrores.telefono = 'El teléfono es requerido'
+    } else if (!/^\+?[\d\s\-()]{7,15}$/.test(telefono.trim())) {
+      nuevosErrores.telefono = 'El teléfono no es válido'
     }
 
     if (!email) {
@@ -61,33 +74,27 @@ export default function FormRegister() {
     }
 
     setErrores(nuevosErrores)
-    // Retorna true si NO hay errores
     return Object.keys(nuevosErrores).length === 0
   }
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()  // Evita que el form recargue la página
-    
-    if (!validar()) return  // Para si hay errores de validación
+    e.preventDefault()
+    if (!validar()) return
 
     setCargando(true)
     setErrores({})
 
     try {
-      // 1. Crear usuario en Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          // Datos extras que se guardan en auth.users metadata
           data: { nombre },
-          // URL a la que Supabase redirige después de verificar el email
-          emailRedirectTo: '${window.location.origin}/api/auth/callback',
+          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
         },
       })
 
       if (error) {
-        // Traduce errores comunes de Supabase al español
         if (error.message.includes('already registered')) {
           setErrores({ email: 'Este email ya está registrado' })
         } else {
@@ -96,35 +103,32 @@ export default function FormRegister() {
         return
       }
 
-      // 2. Si el usuario se creó, crear su perfil en la tabla profiles
       if (data.user) {
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
             id: data.user.id,
             nombre: nombre.trim(),
+            cedula: cedula.trim(),
+            telefono: telefono.trim(),
             email: email.toLowerCase(),
             rol: 'usuario',
           })
 
         if (profileError) {
           console.error('Error creando perfil:', profileError)
-          // No bloquea al usuario, el perfil se puede crear después
         }
       }
 
-      // 3. Mostrar mensaje de éxito (verificar email)
       setExitoso(true)
 
     } catch (err) {
       setErrores({ general: 'Error inesperado. Intenta de nuevo.' })
     } finally {
-      // Siempre quita el estado de carga al terminar
       setCargando(false)
     }
   }
 
-  // Pantalla de éxito después de registrarse
   if (exitoso) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
@@ -135,7 +139,7 @@ export default function FormRegister() {
           ¡Revisa tu email!
         </h2>
         <p className="text-gray-500 text-sm mb-6">
-          Te enviamos un link de verificación a <strong>{email}</strong>. 
+          Te enviamos un link de verificación a <strong>{email}</strong>.
           Haz clic en el link para activar tu cuenta.
         </p>
         <Link href="/login">
@@ -149,7 +153,6 @@ export default function FormRegister() {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-      {/* Encabezado */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Crear cuenta</h1>
         <p className="text-gray-500 text-sm mt-1">
@@ -161,7 +164,6 @@ export default function FormRegister() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Error general */}
         {errores.general && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3">
             <p className="text-sm text-red-600">{errores.general}</p>
@@ -181,6 +183,30 @@ export default function FormRegister() {
         />
 
         <Input
+          id="cedula"
+          label="Número de cédula"
+          type="text"
+          placeholder="Ej: 1234567890"
+          value={cedula}
+          onChange={(e) => setCedula(e.target.value)}
+          error={errores.cedula}
+          icono={<CreditCard className="w-4 h-4" />}
+          autoComplete="off"
+        />
+
+        <Input
+          id="telefono"
+          label="Número de teléfono"
+          type="tel"
+          placeholder="Ej: +57 300 000 0000"
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value)}
+          error={errores.telefono}
+          icono={<Phone className="w-4 h-4" />}
+          autoComplete="tel"
+        />
+
+        <Input
           id="email"
           label="Email"
           type="email"
@@ -192,7 +218,6 @@ export default function FormRegister() {
           autoComplete="email"
         />
 
-        {/* Password con botón para mostrar/ocultar */}
         <div className="relative">
           <Input
             id="password"
