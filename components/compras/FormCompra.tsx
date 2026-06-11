@@ -1,252 +1,275 @@
-// components/compras/FormCompra.tsx
 'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Minus, Plus, ShoppingCart, CheckCircle } from 'lucide-react'
+import { Minus, Plus, ShoppingCart, Lock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrecio } from '@/lib/utils'
 import type { Evento } from '@/types'
-import BoletaPDF from '@/components/compras/BoletaPDF'
+
+// ── Tipos ──────────────────────────────────────────────
+interface Seccion {
+  id: string
+  nombre: string
+  precio: number
+  capacidad: number
+  vendidas: number
+  orden: number
+}
+
+interface LineaSeleccion {
+  seccion: Seccion
+  cantidad: number
+}
 
 interface Props {
   evento: Evento
   userId: string
+  secciones?: Seccion[]
 }
 
-export default function FormCompra({ evento, userId }: Props) {
+// ── Helper: referencia única ────────────────────────────
+function generarReferencia(): string {
+  const ts = Date.now()
+  const rand = Math.random().toString(36).slice(2, 7).toUpperCase()
+  return `BLT-${ts}-${rand}`
+}
+
+// ── Componente ─────────────────────────────────────────
+export default function FormCompra({ evento, userId, secciones = [] }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
+  const tieneSecciones = secciones.length > 0
+
+  // Modo simple
   const [cantidad, setCantidad] = useState(1)
-  const [cargando, setCargando] = useState(false)
-  const [error, setError] = useState('')
-  const [exitoso, setExitoso] = useState(false)
-  const [codigosGenerados, setCodigosGenerados] = useState<string[]>([])
-  const [nombreUsuario, setNombreUsuario] = useState('')
-  const [emailUsuario, setEmailUsuario] = useState('')
-  // ✅ Estado local de boletas disponibles
-  const [boletasDisponibles, setBoletasDisponibles] = useState(
-    evento.capacidad - evento.boletas_vendidas
+  const [boletasDisponibles] = useState(evento.capacidad - evento.boletas_vendidas)
+
+  // Modo secciones
+  const [seleccion, setSeleccion] = useState<Record<string, number>>(
+    Object.fromEntries(secciones.map(s => [s.id, 0]))
+  )
+  const [dispPorSeccion] = useState<Record<string, number>>(
+    Object.fromEntries(secciones.map(s => [s.id, s.capacidad - s.vendidas]))
   )
 
-  const maximo = Math.min(10, boletasDisponibles)
-  const total = evento.precio * cantidad
+  const [cargando, setCargando] = useState(false)
+  const [error, setError] = useState('')
 
-  function generarCodigo(): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-    let codigo = 'BLT-'
-    for (let i = 0; i < 8; i++) {
-      codigo += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return codigo
+  // ── Cálculo del total ──
+  const totalSimple = evento.precio * cantidad
+  const lineas: LineaSeleccion[] = secciones
+    .filter(s => (seleccion[s.id] ?? 0) > 0)
+    .map(s => ({ seccion: s, cantidad: seleccion[s.id] }))
+  const totalSecciones = lineas.reduce((acc, l) => acc + l.seccion.precio * l.cantidad, 0)
+  const totalFinal = tieneSecciones ? totalSecciones : totalSimple
+  const cantidadTotal = tieneSecciones
+    ? lineas.reduce((acc, l) => acc + l.cantidad, 0)
+    : cantidad
+
+  // ── Handler cantidad por sección ──
+  function cambiarCantidadSeccion(seccionId: string, delta: number) {
+    setSeleccion(prev => {
+      const actual = prev[seccionId] ?? 0
+      const disp = dispPorSeccion[seccionId] ?? 0
+      const nueva = Math.max(0, Math.min(10, actual + delta, disp))
+      return { ...prev, [seccionId]: nueva }
+    })
   }
 
+  // ── Submit → redirige a Wompi ──
   async function handleComprar() {
+    if (tieneSecciones && cantidadTotal === 0) {
+      setError('Selecciona al menos una boleta')
+      return
+    }
+
     setCargando(true)
     setError('')
 
     try {
-      // PASO 0: verifica disponibilidad Y trae perfil en paralelo
-      const [
-        { data: eventoActual },
-        { data: perfil }
-      ] = await Promise.all([
-        supabase
-          .from('eventos')
-          .select('boletas_vendidas, capacidad')
-          .eq('id', evento.id)
-          .single(),
-        supabase
-          .from('profiles')
-          .select('nombre, email')
-          .eq('id', userId)
-          .single(),
-      ])
+      const referencia = generarReferencia()
+      const amountInCents = totalFinal * 100 // Wompi trabaja en centavos
 
-      if (!eventoActual) {
-        setError('Error verificando disponibilidad')
-        return
-      }
-
-      const disponibles = eventoActual.capacidad - eventoActual.boletas_vendidas
-
-      if (disponibles <= 0) {
-        setError('Lo sentimos, este evento se agotó')
-        return
-      }
-
-      if (cantidad > disponibles) {
-        setError(`Solo quedan ${disponibles} boletas disponibles`)
-        return
-      }
-
-      setNombreUsuario(perfil?.nombre ?? 'Usuario')
-      setEmailUsuario(perfil?.email ?? '')
-
-      // PASO 1: Crear la compra
-      const { data: compra, error: errorCompra } = await supabase
-        .from('compras')
-        .insert({
-          user_id: userId,
-          evento_id: evento.id,
-          cantidad,
-          total,
-          estado: 'completado',
-        })
-        .select()
-        .single()
-
-      if (errorCompra || !compra) {
-        setError('Error al procesar la compra. Intenta de nuevo.')
-        return
-      }
-
-      // PASO 2: Genera los códigos
-      const codigos: string[] = []
-      const boletas = Array.from({ length: cantidad }, () => {
-        const codigo = generarCodigo()
-        codigos.push(codigo)
-        return { compra_id: compra.id, codigo, usado: false }
+      // 1. Pide la firma de integridad a tu backend
+      const sigRes = await fetch('/api/wompi/signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference: referencia,
+          amount_in_cents: amountInCents,
+          currency: 'COP',
+        }),
       })
 
-      // PASO 3: Inserta boletas e incrementa vendidas en paralelo
-      const [{ error: errorBoletas }] = await Promise.all([
-        supabase.from('boletas').insert(boletas),
-        supabase.rpc('incrementar_boletas_vendidas', {
-          p_evento_id: evento.id,
-          p_cantidad: cantidad,
-        }),
-      ])
+      if (!sigRes.ok) throw new Error('No se pudo generar la firma')
+      const { signature } = await sigRes.json()
 
-      if (errorBoletas) {
-        setError('Error generando boletas. Contacta soporte.')
-        return
-      }
+      // 2. Guarda intención de compra en Supabase para recuperarla al volver
+      const { error: errPendiente } = await supabase
+        .from('compras_pendientes')
+        .insert({
+          referencia,
+          user_id: userId,
+          evento_id: evento.id,
+          cantidad: cantidadTotal,
+          total: totalFinal,
+          // Guarda la selección por sección como JSON para generarla después
+          seleccion_json: tieneSecciones
+            ? lineas.map(l => ({ seccion_id: l.seccion.id, cantidad: l.cantidad }))
+            : null,
+        })
 
-      // ✅ Actualiza el estado local de disponibilidad
-      setBoletasDisponibles(prev => prev - cantidad)
-      setCodigosGenerados(codigos)
-      setExitoso(true)
+      if (errPendiente) throw new Error('Error guardando la compra')
 
-    } catch (err) {
-      setError('Error inesperado. Intenta de nuevo.')
-    } finally {
+      // 3. Redirige al checkout de Wompi
+      const params = new URLSearchParams({
+        'public-key': process.env.NEXT_PUBLIC_WOMPI_PUBLIC_KEY!,
+        currency: 'COP',
+        'amount-in-cents': String(amountInCents),
+        reference: referencia,
+        'signature:integrity': signature,
+        'redirect-url': `${window.location.origin}/compra/resultado`,
+      })
+
+      window.location.href = `https://checkout.wompi.co/p/?${params}`
+    } catch (e: any) {
+      setError(e.message ?? 'Error iniciando el pago. Intenta de nuevo.')
       setCargando(false)
     }
   }
 
-  // ── PANTALLA DE ÉXITO ──
-  if (exitoso) {
-    return (
-      <div className="bg-white rounded-2xl border border-gray-100 p-8">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">¡Compra exitosa!</h2>
-          <p className="text-gray-500 text-sm">
-            Compraste <strong>{cantidad} boleta{cantidad > 1 ? 's' : ''}</strong> para{' '}
-            <strong>{evento.titulo}</strong>
-          </p>
-        </div>
-
-        <div className="space-y-4 mb-6">
-          {codigosGenerados.map((codigo, i) => (
-            <BoletaPDF
-              key={codigo}
-              boleta={{ codigo, usado: false }}
-              compra={{
-                cantidad,
-                total,
-                created_at: new Date().toISOString(),
-              }}
-              evento={{
-                titulo: evento.titulo,
-                fecha: evento.fecha,
-                lugar: evento.lugar,
-                precio: evento.precio,
-              }}
-              usuario={{
-                nombre: nombreUsuario,
-                email: emailUsuario,
-              }}
-              numeroBoleta={i + 1}
-              totalBoletas={cantidad}
-            />
-          ))}
-        </div>
-
-        <div className="flex items-center justify-between py-3 border-t border-gray-100 mb-6">
-          <span className="text-sm text-gray-500">Total pagado</span>
-          <span className="font-bold text-gray-900">{formatPrecio(total)}</span>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={() => router.push('/historial')}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm transition-colors"
-          >
-            Ver mis boletas
-          </button>
-          <button
-            onClick={() => router.push('/eventos')}
-            className="w-full py-3 bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold rounded-xl text-sm transition-colors"
-          >
-            Ver más eventos
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // ── FORMULARIO ──
+  // ── FORMULARIO ────────────────────────────────────────
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6">
       <h2 className="font-semibold text-gray-900 text-lg mb-6">
         Selecciona tus boletas
       </h2>
 
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="text-sm font-medium text-gray-700">Cantidad</p>
-          {/* ✅ Muestra disponibilidad actualizada */}
-          <p className="text-xs text-gray-400 mt-0.5">
-            {boletasDisponibles} disponibles · Máximo {maximo} por compra
-          </p>
+      {tieneSecciones ? (
+        /* ── Selector por secciones ── */
+        <div className="space-y-3 mb-6">
+          {secciones.map(s => {
+            const disp = dispPorSeccion[s.id] ?? 0
+            const cant = seleccion[s.id] ?? 0
+            const agotada = disp === 0
+            return (
+              <div
+                key={s.id}
+                className={`rounded-xl border p-4 transition-colors ${
+                  agotada ? 'border-gray-100 bg-gray-50 opacity-60' : 'border-gray-200 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">{s.nombre}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {agotada ? 'Agotado' : `${disp} disponibles`} · {formatPrecio(s.precio)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => cambiarCantidadSeccion(s.id, -1)}
+                      disabled={cant <= 0 || agotada}
+                      className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 transition-colors"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="w-6 text-center font-bold text-sm">{cant}</span>
+                    <button
+                      onClick={() => cambiarCantidadSeccion(s.id, +1)}
+                      disabled={cant >= Math.min(10, disp) || agotada}
+                      className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setCantidad(c => Math.max(1, c - 1))}
-            disabled={cantidad <= 1}
-            className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
-          >
-            <Minus className="w-4 h-4" />
-          </button>
-          <span className="text-xl font-bold w-8 text-center">{cantidad}</span>
-          <button
-            onClick={() => setCantidad(c => Math.min(maximo, c + 1))}
-            disabled={cantidad >= maximo}
-            className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+      ) : (
+        /* ── Selector simple ── */
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Cantidad</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {boletasDisponibles} disponibles · Máximo {Math.min(10, boletasDisponibles)} por compra
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setCantidad(c => Math.max(1, c - 1))}
+              disabled={cantidad <= 1}
+              className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+            <span className="text-xl font-bold w-8 text-center">{cantidad}</span>
+            <button
+              onClick={() => setCantidad(c => Math.min(Math.min(10, boletasDisponibles), c + 1))}
+              disabled={cantidad >= Math.min(10, boletasDisponibles)}
+              className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
+      {/* Resumen del total */}
       <div className="bg-gray-50 rounded-xl p-4 mb-6 space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500">{formatPrecio(evento.precio)} × {cantidad}</span>
-          <span className="text-gray-700">{formatPrecio(total)}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500">Cargo por servicio</span>
-          <span className="text-green-600 font-medium">Gratis</span>
-        </div>
-        <div className="border-t border-gray-200 pt-2 flex justify-between">
-          <span className="font-semibold text-gray-900">Total</span>
-          <span className="font-bold text-xl text-gray-900">{formatPrecio(total)}</span>
-        </div>
+        {tieneSecciones ? (
+          lineas.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-1">
+              Selecciona boletas para ver el total
+            </p>
+          ) : (
+            <>
+              {lineas.map(l => (
+                <div key={l.seccion.id} className="flex justify-between text-sm">
+                  <span className="text-gray-500">
+                    {l.seccion.nombre} × {l.cantidad}
+                  </span>
+                  <span className="text-gray-700">
+                    {formatPrecio(l.seccion.precio * l.cantidad)}
+                  </span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Cargo por servicio</span>
+                <span className="text-green-600 font-medium">Gratis</span>
+              </div>
+              <div className="border-t border-gray-200 pt-2 flex justify-between">
+                <span className="font-semibold text-gray-900">Total</span>
+                <span className="font-bold text-xl text-gray-900">
+                  {formatPrecio(totalSecciones)}
+                </span>
+              </div>
+            </>
+          )
+        ) : (
+          <>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">
+                {formatPrecio(evento.precio)} × {cantidad}
+              </span>
+              <span className="text-gray-700">{formatPrecio(totalSimple)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Cargo por servicio</span>
+              <span className="text-green-600 font-medium">Gratis</span>
+            </div>
+            <div className="border-t border-gray-200 pt-2 flex justify-between">
+              <span className="font-semibold text-gray-900">Total</span>
+              <span className="font-bold text-xl text-gray-900">
+                {formatPrecio(totalSimple)}
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       {error && (
@@ -255,30 +278,35 @@ export default function FormCompra({ evento, userId }: Props) {
         </div>
       )}
 
-      {/* ✅ Usa boletasDisponibles en vez de boletasRestantes */}
       <button
         onClick={handleComprar}
-        disabled={cargando || boletasDisponibles === 0}
+        disabled={
+          cargando ||
+          (tieneSecciones ? cantidadTotal === 0 : boletasDisponibles === 0)
+        }
         className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
       >
         {cargando ? (
           <>
             <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Procesando...
+            Redirigiendo a pago…
           </>
         ) : (
           <>
             <ShoppingCart className="w-4 h-4" />
-            Confirmar compra · {formatPrecio(total)}
+            {cantidadTotal > 0
+              ? `Pagar · ${formatPrecio(totalFinal)}`
+              : 'Selecciona boletas'}
           </>
         )}
       </button>
 
-      <p className="text-center text-xs text-gray-400 mt-4">
-        🔒 Compra segura · Boleta digital inmediata
+      <p className="text-center text-xs text-gray-400 mt-4 flex items-center justify-center gap-1">
+        <Lock className="w-3 h-3" />
+        Pago seguro procesado por Wompi
       </p>
     </div>
   )
